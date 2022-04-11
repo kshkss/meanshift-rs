@@ -41,7 +41,7 @@ impl<const N: usize> Meanshift<N> {
         let mut weight = 0.;
         for _i in 0..self.max_iter {
             let mut mean = [0.; N];
-            weight = 0.;
+            weight = std::f64::MIN_POSITIVE;
             for row in data.iter() {
                 let w = f(&result, row);
                 weight += w;
