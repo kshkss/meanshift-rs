@@ -88,15 +88,15 @@ impl<const N: usize> Meanshift<N> {
         samples: &[[f64; N]],
         seeds: &[[f64; N]],
     ) -> (Vec<usize>, Vec<[f64; N]>) {
-        let index = index::FullSearch::new(samples);
-        self.clustering_with_index(f, samples, &index, seeds)
+        let mut index = index::FullSearch::new(samples);
+        self.clustering_with_index(f, samples, &mut index, seeds)
     }
 
     pub fn clustering_with_index<T>(
         &self,
         f: impl Fn(&[f64], &[f64]) -> f64,
         samples: &[[f64; N]],
-        index: &T,
+        index: &mut T,
         seeds: &[[f64; N]],
     ) -> (Vec<usize>, Vec<[f64; N]>)
     where
@@ -114,7 +114,7 @@ impl<const N: usize> Meanshift<N> {
         weights.sort_unstable_by(|&(v1, _), (v2, _)| {
             v1.partial_cmp(v2).expect("A seeds converged to nan")
         });
-        let index = T::construct(&centers);
+        index.refresh(&centers);
 
         let mut unique_centers = Vec::<[f64; N]>::new();
         let mut labels = Vec::with_capacity(seeds.len());

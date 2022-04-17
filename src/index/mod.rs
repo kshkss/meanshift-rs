@@ -1,5 +1,6 @@
 use crate::traits::Index;
 
+#[derive(Debug, Clone)]
 pub struct FullSearch {
     len: usize,
 }
@@ -14,8 +15,8 @@ impl FullSearch {
 impl<T> Index<T> for FullSearch {
     type It = std::ops::Range<usize>;
 
-    fn construct(data: &[T]) -> Self {
-        Self::new(data)
+    fn refresh(&mut self, data: &[T]) {
+        assert_eq!(self.len, data.len());
     }
 
     fn neighbors(&self, _center: &T) -> Self::It {
@@ -23,10 +24,18 @@ impl<T> Index<T> for FullSearch {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Octree<const NBIT: usize> {
     origin: [f64; 3],
     size: f64,
     sample_index: Vec<Vec<usize>>,
+    where_: Vec<Where>,
+}
+
+#[derive(Debug, Clone)]
+struct Where {
+    node_index: usize,
+    obj_index: usize,
 }
 
 impl<const NBIT: usize> Octree<NBIT> {
@@ -61,20 +70,21 @@ impl<const NBIT: usize> Octree<NBIT> {
             sample_index.push(Vec::new());
         }
 
+        let mut where_ = Vec::with_capacity(data.len());
         for (k, x) in data.iter().enumerate() {
             let n = Self::index(&size, &origin, x);
             sample_index[n].push(k);
-        }
-
-        for indices in sample_index.iter_mut() {
-            indices.sort();
-            indices.resize(indices.len(), 0);
+            where_.push(Where {
+                node_index: n,
+                obj_index: sample_index[n].len(),
+            });
         }
 
         Self {
             origin,
             size,
             sample_index,
+            where_,
         }
     }
 
@@ -92,8 +102,26 @@ impl<const NBIT: usize> Octree<NBIT> {
 }
 
 impl<const NBIT: usize> Index<[f64; 3]> for Octree<NBIT> {
-    fn construct(data: &[[f64; 3]]) -> Self {
-        Self::new(data)
+    fn refresh(&mut self, data: &[[f64; 3]]) {
+        assert_eq!(self.where_.len(), data.len());
+
+        for (k, x) in data.iter().enumerate() {
+            let n = Self::index(&self.size, &self.origin, x);
+            let old = self.where_[k].clone();
+            assert_eq!(k, self.sample_index[old.node_index][old.obj_index]);
+            self.sample_index[old.node_index].swap_remove(old.obj_index);
+            if old.obj_index < self.sample_index[old.node_index].len() {
+                self.where_[self.sample_index[old.node_index][old.obj_index]] = Where {
+                    node_index: old.node_index,
+                    obj_index: old.obj_index,
+                };
+            }
+            self.sample_index[n].push(k);
+            self.where_[k] = Where {
+                node_index: n,
+                obj_index: self.sample_index[n].len(),
+            };
+        }
     }
 
     fn neighbors(&self, center: &[f64; 3]) -> Self::It {
